@@ -1,6 +1,6 @@
 ﻿from flask import Flask, request
 from flask_restful import Resource, Api, reqparse
-#from flask.views import MethodView
+from sqlalchemy.sql import text
 from sqlalchemy import create_engine
 import json
 
@@ -27,25 +27,36 @@ class People_Meta(Resource):
 	    people_list.append(person_dict)
 			
 	    #return json.dumps(people_list)
-	    return {'message':'success', 'data':people_list},200
+        return {'message':'success', 'data':people_list},200
 
 
     def post(self):
         parser = reqparse.RequestParser()
-        parser.add_argument('Survived', required=True)
-        parser.add_argument('Pclass', required=True)
-        parser.add_argument('Name', required=True)
-        parser.add_argument('Sex', required=True)
-        parser.add_argument('Age', required=True)
-        parser.add_argument('Siblings/Spouses Aboard', required=True)
-        parser.add_argument('Parents/Children Aboard', required=True)
-        parser.add_argument('Fare', required=True)
+        parser.add_argument('Survived', required=False)
+        parser.add_argument('Pclass', required=False)
+        parser.add_argument('Name', required=False)
+        parser.add_argument('Sex', required=False)
+        parser.add_argument('Age', required=False)
+        parser.add_argument('Siblings/Spouses Aboard', required=False)
+        parser.add_argument('Parents/Children Aboard', required=False)
+        parser.add_argument('Fare', required=False)
 
         # Parse the arguments into an object
         args = parser.parse_args()
         
         conn = e.connect()
-        conn.execute("insert into titanic (Survived, Pclass, Name, Sex, Age, Siblings/Spouses Aboard, Parents/Children Aboard, Fare) values (%s, %s, %s, %s, %s, %s, %s, %s)"  % (args['Survived'], args['Pclass'], args['Name'], args['Sex'], args['Age'], args['Siblings/Spouses Aboard'], args['Parents/Children Aboard'], args['Fare']))
+        # find value of new id
+        new_id = len(conn.execute("select * from titanic").cursor.fetchall()) + 1
+        args.update({'id':new_id})
+        try:
+            conn.execute("insert into titanic (id, Survived, Pclass, Name, Sex, Age, [Siblings/Spouses Aboard], [Parents/Children Aboard], Fare) values (?,?,?,?,?,?,?,?,?)",  ((args['id']), (args['Survived']), (args['Pclass']), (args['Name']), (args['Sex']), (args['Age']), (args['Siblings/Spouses Aboard']), (args['Parents/Children Aboard']), (args['Fare'])))
+            #conn.execute("insert into titanic (id, Survived, Pclass, Name, Sex, Age, Siblings/Spouses Aboard, Parents/Children Aboard, Fare) values (%d, %s, %d, %s, %s, %f, %d, %d, %f)"  % (new_id, args['Survived'], args['Pclass'], args['Name'], args['Sex'], args['Age'], args['Siblings/Spouses Aboard'], args['Parents/Children Aboard'], args['Fare']))
+            #conn.execute(text("""INSERT INTO TITANIC(id, Survived, Pclass, Name, Sex, Age, [Siblings/Spouses Aboard], [Parents/Children Aboard], Fare) VALUES(:id, :Survived, :Pclass, :Name, :Sex, :Age, :[Siblings/Spouses Aboard], :[Parents/Children Aboard], :Fare""") **args)
+            #conn.execute(text("""INSERT INTO TITANIC DEFAULT VALUES"""))
+
+        except:
+            return args
+            #return {'message': 'Failed to input data'}, 502
         # cur[args['identifier']] = args
         #conn.commit()
 
@@ -58,7 +69,7 @@ class People_Id(Resource):
         conn = e.connect()
         results = conn.execute("select * from titanic where id='%s'" % identifier)
         person_dict = {}
-        for key, value in zip(results.keys(), results.cursor.fetchall()):
+        for key, value in zip(results.keys(), results.cursor.fetchall()[0]):
             person_dict.update({key: value})
 
         if len(person_dict) > 0:
@@ -74,7 +85,7 @@ class People_Id(Resource):
         for key, value in zip(results.keys(), results.cursor.fetchall()):
             person_dict.update({key: value})
     
-            # If key does not exit in the database, return a 404 error.
+            # If id does not exist in the database, return a 404 error.
 	    if len(person_dict) == 0:
 	        return {'message': 'Person not Found', 'data': person_dict}, 404
 	    else:
@@ -83,26 +94,32 @@ class People_Id(Resource):
 	        return {'message': 'Success', 'Deleted': person_dict}
     
     
-    def put(self):
+    def put(self, identifier):
     	parser = reqparse.RequestParser()
-	parser.add_argument('Survived', required=True)
-	parser.add_argument('Pclass', required=True)
-	parser.add_argument('Name', required=True)
-	parser.add_argument('Sex', required=True)
-	parser.add_argument('Age', required=True)
-	parser.add_argument('Siblings/Spouses Aboard', required=True)
-	parser.add_argument('Parents/Children Aboard', required=True)
-	parser.add_argument('Fare', required=True)
+	parser.add_argument('Survived', required=False)
+	parser.add_argument('Pclass', required=False)
+	parser.add_argument('Name', required=False)
+	parser.add_argument('Sex', required=False)
+	parser.add_argument('Age', required=False)
+	parser.add_argument('Siblings/Spouses Aboard', required=False)
+	parser.add_argument('Parents/Children Aboard', required=False)
+	parser.add_argument('Fare', required=False)
 
         # Parse the arguments into an object
 	args = parser.parse_args()
 	
-        conn = e.connect()
-	conn.execute("insert into titanic %s values %s" % (args.keys(), args.values()))
-	# cur[args['identifier']] = args
-	#conn.commit()
-
-        return {'message': 'Person Added', 'data': args}, 201
+        # Check if any fields other than id have been sent via put request
+        if len(args) == 0:
+            return {'message': 'No fields to update'}, 400
+        elif conn.execute("select id from titanic").cursor.fetchall()
+        else:
+            stmt = ''
+            for key, value in args.iteritems():
+                stmt += "[" + key + "] = " + str(value) + ", "
+            stmt.rstrip(', ') 
+            conn = e.connect()
+	    conn.execute("update titanic set " + stmt .rstrip(', ') + " where id='%s'" % identifier)
+	    return {'message': 'Person Updated', 'data': args}, 201
 
 api.add_resource(People_Id, "/people/<int:identifier>")
 api.add_resource(People_Meta, "/people")
