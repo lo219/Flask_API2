@@ -1,7 +1,7 @@
 ﻿from flask import Flask, request
 from flask_restful import Resource, Api, reqparse
 from sqlalchemy.sql import text
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, update, MetaData
 import json
 
 # Create a engine for connecting to SQLite3.
@@ -105,21 +105,42 @@ class People_Id(Resource):
 	parser.add_argument('Parents/Children Aboard', required=False)
 	parser.add_argument('Fare', required=False)
 
-        # Parse the arguments into an object
+        # Pass the arguments into an object
 	args = parser.parse_args()
-	
+
+        # Check if identifier is a valid id number
+        conn = e.connect()
+        is_identifier_valid = False
+        for ID in conn.execute("select id from titanic").cursor.fetchall():
+            if ID == identifier:
+                is_identifier_valid = True
+        #if not is_identifier_valid:
+        #    return {'message': 'ID is not valid'}, 400
+
         # Check if any fields other than id have been sent via put request
         if len(args) == 0:
             return {'message': 'No fields to update'}, 400
-        elif conn.execute("select id from titanic").cursor.fetchall()
         else:
             stmt = ''
+            d = {}
             for key, value in args.iteritems():
-                stmt += "[" + key + "] = " + str(value) + ", "
+                if value == None:
+                    break
+                else:
+                    stmt += '[' + key + '] = ' + str(value) + ', '
             stmt.rstrip(', ') 
+            meta = MetaData()
+            meta.reflect(bind=e)
             conn = e.connect()
-	    conn.execute("update titanic set " + stmt .rstrip(', ') + " where id='%s'" % identifier)
-	    return {'message': 'Person Updated', 'data': args}, 201
+
+            titanic_table = meta.tables['titanic']
+            #update_stmt = titanic_table.update().\
+            #        where(titanic_table.c.id == identifier).\
+            #        values([{key:value} for key, value in args.iterkeys(), args.itervalues()])
+	    #conn.execute("update titanic set " + stmt + " where id=%d" % identifier)
+            #conn.commit()
+            conn.execute(update_stmt)
+	    return {'message': 'Person Updated', 'data': stmt}, 201
 
 api.add_resource(People_Id, "/people/<int:identifier>")
 api.add_resource(People_Meta, "/people")

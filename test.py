@@ -47,3 +47,30 @@ def post():
     print(args)
     #return {'message': 'Person Added', 'data': args}, 201
 
+
+def put(identifier):
+    d = {}
+    d.update({'Survived':'True'})
+    d.update({'Pclass':'1'})
+    d.update({'Name':'John John'})
+    d.update({'Sex':'Male'})
+    d.update({'Age':'23'})
+    d.update({'Siblings/Spouses Aboard':'2'})
+    d.update({'Parents/Children Aboard':'1'})
+    d.update({'Fare':'2.99'})
+
+    # Parse the arguments into an object
+
+    # Check if any fields other than id have been sent via put request
+    if len(d) == 0:
+        return {'message': 'No fields to update'}, 400
+    #elif conn.execute("select id from titanic").cursor.fetchall()
+    else:
+        stmt = ''
+        for key, value in d.iteritems():
+            stmt += "[" + key + "] = " + str(value) + ", "
+        stmt.rstrip(', ')
+        #conn = e.connect()
+        #conn.execute("update titanic set " + stmt .rstrip(', ') + " where id=%d" % identifier)
+        print("update titanic set " + stmt  + " where id='%s'" % identifier)
+        return {'message': 'Person Updated', 'data': d}, 201
