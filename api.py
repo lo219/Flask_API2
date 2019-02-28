@@ -122,13 +122,15 @@ class People_Id(Resource):
             return {'message': 'No fields to update'}, 400
         else:
             stmt = ''
-            d = {}
+            #d = {}
             for key, value in args.iteritems():
                 if value == None:
-                    break
+                    pass
                 else:
-                    stmt += '[' + key + '] = ' + str(value) + ', '
-            stmt.rstrip(', ') 
+                    stmt += "[" + key + "] = \'" + str(value) + "\', "
+            
+            # remove trailing ', ' from stmt (stmt.strip(', ') does not work here) 
+            stmt = stmt[:-2]
             meta = MetaData()
             meta.reflect(bind=e)
             conn = e.connect()
@@ -137,9 +139,9 @@ class People_Id(Resource):
             #update_stmt = titanic_table.update().\
             #        where(titanic_table.c.id == identifier).\
             #        values([{key:value} for key, value in args.iterkeys(), args.itervalues()])
-	    #conn.execute("update titanic set " + stmt + " where id=%d" % identifier)
+	    conn.execute("update titanic set " + stmt + " where id=%d" % identifier)
             #conn.commit()
-            conn.execute(update_stmt)
+            #conn.execute(update_stmt)
 	    return {'message': 'Person Updated', 'data': stmt}, 201
 
 api.add_resource(People_Id, "/people/<int:identifier>")

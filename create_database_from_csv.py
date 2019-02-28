@@ -1,3 +1,4 @@
+import uuid
 import pandas as pd
 from sqlalchemy import create_engine
 
@@ -17,12 +18,16 @@ def create_database_from_csv(db_name, table_name, db_type, csv_file_path):
 		
 	# Change binary values to boolean	
 	survived_df = csv_df['Survived'].apply(binary_to_boolean)
+
+        # Create uuid column
+        uuid_df = csv_df['Name'].apply(lambda x: uuid.uuid4())
 	#siblings_df = csv_df['Siblings/Spouses Aboard'].apply(binary_to_boolean)
 	#parents_df = csv_df['Parents/Children Aboard'].apply(binary_to_boolean)
 	
 	# Replace the binary valued columns with the alternatives
 	#csv_df.drop(columns=['Survived', 'Siblings/Spouses Aboard', 'Parents/Children Aboard'], inplace=True)
 	csv_df['Survived'] = survived_df
+        #csv_df['uuid'] = uuid_df
 	#csv_df['Siblings/Spouses Aboard'] = siblings_df
 	#csv_df['Parents/Children Aboard'] = parents_df 
 	
