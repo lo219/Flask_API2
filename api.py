@@ -3,6 +3,7 @@ from flask_restful import Resource, Api, reqparse
 from sqlalchemy.sql import text
 from sqlalchemy import create_engine, func, update, MetaData
 import json
+import uuid
 
 # Create a engine for connecting to SQLite3.
 # Assuming titanic.db is in your app root folder
@@ -46,7 +47,7 @@ class People_Meta(Resource):
         
         conn = e.connect()
         # find value of new id
-        new_id = len(conn.execute("select * from titanic").cursor.fetchall()) + 1
+        new_id = str(uuid.uuid4())
         args.update({'id':new_id})
         try:
             conn.execute("insert into titanic (id, Survived, Pclass, Name, Sex, Age, [Siblings/Spouses Aboard], [Parents/Children Aboard], Fare) values (?,?,?,?,?,?,?,?,?)",  ((args['id']), (args['Survived']), (args['Pclass']), (args['Name']), (args['Sex']), (args['Age']), (args['Siblings/Spouses Aboard']), (args['Parents/Children Aboard']), (args['Fare'])))
@@ -67,12 +68,16 @@ class People_Id(Resource):
     def get(self, identifier):
 
         conn = e.connect()
-        results = conn.execute("select * from titanic where id='%s'" % identifier)
+        results = conn.execute("select * from titanic where id='%s'" % identifier).fetchone()  ### fetchone
+
+        if results is None:   #####
+            return {'message': 'id not found', 'invalid id': identifier}, 404 #####
+
         person_dict = {}
-        for key, value in zip(results.keys(), results.cursor.fetchall()[0]):
+        for key, value in zip(results.keys(), results): #fetchone
             person_dict.update({key: value})
 
-        if len(person_dict) > 0:
+        if len(person_dict) > 0: # don't need this line anymore
             return {'message':'success', 'data':person_dict},200
             #return json.dumps(results.keys())
             #return results.keys()
@@ -80,18 +85,29 @@ class People_Id(Resource):
 
     def delete(self, identifier):
         conn = e.connect()
-        results = conn.execute("select * from titanic where id='%s'" % identifier)
-        person_dict = {}
-        for key, value in zip(results.keys(), results.cursor.fetchall()):
+        results = conn.execute("select * from titanic where id='%s'" % identifier).fetchone()  ### fetchone
+        
+        if results is None:   #####
+            return {'message': 'id not found', 'invalid id': identifier}, 404 #####
+
+        person_dict = {} 
+        for key, value in zip(results.keys(), results): # delete fetchall
             person_dict.update({key: value})
     
-            # If id does not exist in the database, return a 404 error.
-	    if len(person_dict) == 0:
-	        return {'message': 'Person not Found', 'data': person_dict}, 404
-	    else:
-	        # Delete person with id = identifier
-	        conn.execute("delete from titanic where id='%s'" % identifier)
-	        return {'message': 'Success', 'Deleted': person_dict}
+        # Do not need anymore
+        #    # If id does not exist in the database, return a 404 error.
+	#    if len(person_dict) == 0:
+	#        return {'message': 'Person not Found', 'data': person_dict}, 404
+	#    else:
+	#        # Delete person with id = identifier
+	#        conn.execute("delete from titanic where id='%s'" % identifier)
+	#        return {'message': 'Success', 'Deleted': person_dict}
+
+        ### New
+        # Delete person with id = identifier
+        conn.execute("delete from titanic where id='%s'" % identifier)
+        return {'message': 'Success', 'Deleted': person_dict}, 200
+
     
     
     def put(self, identifier):
@@ -112,10 +128,12 @@ class People_Id(Resource):
         conn = e.connect()
         is_identifier_valid = False
         for ID in conn.execute("select id from titanic").cursor.fetchall():
-            if ID == identifier:
+            if ID[0] == identifier:
                 is_identifier_valid = True
-        #if not is_identifier_valid:
-        #    return {'message': 'ID is not valid'}, 400
+                break
+
+        if is_identifier_valid == False:
+            return {'message': 'ID is not valid', 'invalid id': identifier}, 404####
 
         # Check if any fields other than id have been sent via put request
         if len(args) == 0:
@@ -129,7 +147,7 @@ class People_Id(Resource):
                 else:
                     stmt += "[" + key + "] = \'" + str(value) + "\', "
             
-            # remove trailing ', ' from stmt (stmt.strip(', ') does not work here) 
+            # remove trailing ', ' from stmt (stmt.rstrip(', ') does not work here) 
             stmt = stmt[:-2]
             meta = MetaData()
             meta.reflect(bind=e)
@@ -139,12 +157,12 @@ class People_Id(Resource):
             #update_stmt = titanic_table.update().\
             #        where(titanic_table.c.id == identifier).\
             #        values([{key:value} for key, value in args.iterkeys(), args.itervalues()])
-	    conn.execute("update titanic set " + stmt + " where id=%d" % identifier)
+	    conn.execute("update titanic set " + stmt + " where id='%s'" % identifier)
             #conn.commit()
             #conn.execute(update_stmt)
 	    return {'message': 'Person Updated', 'data': stmt}, 201
 
-api.add_resource(People_Id, "/people/<int:identifier>")
+api.add_resource(People_Id, "/people/<string:identifier>")
 api.add_resource(People_Meta, "/people")
 
 if __name__ == "__main__":
