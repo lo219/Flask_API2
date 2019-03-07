@@ -77,8 +77,8 @@ class People_Id(Resource):
         for key, value in zip(results.keys(), results): #fetchone
             person_dict.update({key: value})
 
-        if len(person_dict) > 0: # don't need this line anymore
-            return {'message':'success', 'data':person_dict},200
+        #if len(person_dict) > 0: # don't need this line anymore
+        return {'message':'success', 'data':person_dict},200
             #return json.dumps(results.keys())
             #return results.keys()
 
@@ -136,31 +136,37 @@ class People_Id(Resource):
             return {'message': 'ID is not valid', 'invalid id': identifier}, 404####
 
         # Check if any fields other than id have been sent via put request
-        if len(args) == 0:
-            return {'message': 'No fields to update'}, 400
-        else:
-            stmt = ''
-            #d = {}
-            for key, value in args.iteritems():
-                if value == None:
-                    pass
-                else:
-                    stmt += "[" + key + "] = \'" + str(value) + "\', "
+        #if len(args) == 0:
+        #    return {'message': 'No fields to update'}, 400
+        #else:
+        for val in args.values():
+            if val is not None:
+                stmt = ''
+                #d = {}
+                for key, value in args.iteritems():
+                    if value == None:
+                        pass
+                    else:
+                        stmt += "[" + key + "] = \'" + str(value) + "\', "
             
-            # remove trailing ', ' from stmt (stmt.rstrip(', ') does not work here) 
-            stmt = stmt[:-2]
-            meta = MetaData()
-            meta.reflect(bind=e)
-            conn = e.connect()
+                # remove trailing ', ' from stmt (stmt.rstrip(', ') does not work here) 
+                stmt = stmt[:-2]
+                meta = MetaData()
+                meta.reflect(bind=e)
+                conn = e.connect()
 
-            titanic_table = meta.tables['titanic']
-            #update_stmt = titanic_table.update().\
-            #        where(titanic_table.c.id == identifier).\
-            #        values([{key:value} for key, value in args.iterkeys(), args.itervalues()])
-	    conn.execute("update titanic set " + stmt + " where id='%s'" % identifier)
-            #conn.commit()
-            #conn.execute(update_stmt)
-	    return {'message': 'Person Updated', 'data': stmt}, 201
+                titanic_table = meta.tables['titanic']
+                #update_stmt = titanic_table.update().\
+                #        where(titanic_table.c.id == identifier).\
+                #        values([{key:value} for key, value in args.iterkeys(), args.itervalues()])
+	        conn.execute("update titanic set " + stmt + " where id='%s'" % identifier)
+                #conn.commit()
+                #conn.execute(update_stmt)
+	        return {'message': 'Person Updated', 'data': stmt}, 201
+
+        # If no fields have a value other than None, return error message 
+        return {'message': 'No fields to update'}, 400
+
 
 api.add_resource(People_Id, "/people/<string:identifier>")
 api.add_resource(People_Meta, "/people")
