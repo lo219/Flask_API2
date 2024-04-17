@@ -16,156 +16,146 @@ api = Api(app)
 
 class People_Meta(Resource):
     def get(self):
+        people_list = []
         # Connect to databse
         conn = e.connect()
-	# Perform query and return JSON data
-	query = conn.execute("select * from titanic")
-	people_list = []
-	for row in query.cursor.fetchall():
-	    person_dict = {}
-	    for key, value in zip(query.keys(), row):
-	        person_dict.update({key: value})
-	    people_list.append(person_dict)
-			
-	    #return json.dumps(people_list)
-        return {'message':'success', 'data':people_list},200
+        # Perform query and return JSON data
+        query = conn.execute(text("select * from titanic"))
+
+        for row in query.cursor.fetchall():
+            person_dict = {}
+            for key, value in zip(query.keys(), row):
+                person_dict.update({key: value})
+            people_list.append(person_dict)
+                
+        conn.close()
+
+        return people_list
 
 
     def post(self):
         parser = reqparse.RequestParser()
-        parser.add_argument('Survived', required=False)
-        parser.add_argument('Pclass', required=False)
-        parser.add_argument('Name', required=False)
-        parser.add_argument('Sex', required=False)
-        parser.add_argument('Age', required=False)
-        parser.add_argument('Siblings/Spouses Aboard', required=False)
-        parser.add_argument('Parents/Children Aboard', required=False)
-        parser.add_argument('Fare', required=False)
+        parser.add_argument('id', required=False, location='args')
+        parser.add_argument('survived', required=True, location='args')
+        parser.add_argument('p_class', required=True, location='args')
+        parser.add_argument('name', required=True, location='args')
+        parser.add_argument('sex', required=True, location='args')
+        parser.add_argument('age', required=True, location='args')
+        parser.add_argument('siblings_or_spouses_aboard', required=True, location='args')
+        parser.add_argument('parents_or_children_aboard', required=True, location='args')
+        parser.add_argument('fare', required=True, location='args')
 
-        # Parse the arguments into an object
+        # Parse the arguments into an object named args
         args = parser.parse_args()
-        
-        conn = e.connect()
-        # find value of new id
+
+        # generate id and update args object
         new_id = str(uuid.uuid4())
         args.update({'id':new_id})
+        
+        # Connect to databse
+        conn = e.connect()
+        
         try:
-            conn.execute("insert into titanic (id, Survived, Pclass, Name, Sex, Age, [Siblings/Spouses Aboard], [Parents/Children Aboard], Fare) values (?,?,?,?,?,?,?,?,?)",  ((args['id']), (args['Survived']), (args['Pclass']), (args['Name']), (args['Sex']), (args['Age']), (args['Siblings/Spouses Aboard']), (args['Parents/Children Aboard']), (args['Fare'])))
-            #conn.execute("insert into titanic (id, Survived, Pclass, Name, Sex, Age, Siblings/Spouses Aboard, Parents/Children Aboard, Fare) values (%d, %s, %d, %s, %s, %f, %d, %d, %f)"  % (new_id, args['Survived'], args['Pclass'], args['Name'], args['Sex'], args['Age'], args['Siblings/Spouses Aboard'], args['Parents/Children Aboard'], args['Fare']))
-            #conn.execute(text("""INSERT INTO TITANIC(id, Survived, Pclass, Name, Sex, Age, [Siblings/Spouses Aboard], [Parents/Children Aboard], Fare) VALUES(:id, :Survived, :Pclass, :Name, :Sex, :Age, :[Siblings/Spouses Aboard], :[Parents/Children Aboard], :Fare""") **args)
-            #conn.execute(text("""INSERT INTO TITANIC DEFAULT VALUES"""))
-
+            conn.execute(text("insert into titanic (id, survived, p_class, name, sex, age, siblings_or_spouses_aboard, parents_or_children_aboard, fare) values (:id, :survived, :p_class, :name, :sex, :age, :siblings_or_spouses_aboard, :parents_or_children_aboard, :fare)"),  
+                       [{"id": (args['id']), "survived": (args['survived']), "p_class": (args['p_class']), "name": (args['name']), "sex": (args['sex']), "age": (args['age']), "siblings_or_spouses_aboard": (args['siblings_or_spouses_aboard']), "parents_or_children_aboard": (args['parents_or_children_aboard']), "fare": (args['fare'])}],
+            )
+            conn.commit()
+            
+            return {'message': 'data added', 'data': args}, 201
         except:
-            return args
-            #return {'message': 'Failed to input data'}, 502
-        # cur[args['identifier']] = args
-        #conn.commit()
-
-        return {'message': 'Person Added', 'data': args}, 201
+            return {'message': 'failed to input data', 'data': args}, 502
+        finally:
+            conn.close()
 
 
 class People_Id(Resource):
     def get(self, identifier):
 
         conn = e.connect()
-        results = conn.execute("select * from titanic where id='%s'" % identifier).fetchone()  ### fetchone
-
-        if results is None:   #####
-            return {'message': 'id not found', 'invalid id': identifier}, 404 #####
+        result = conn.execute(text("select * from titanic where id = :identifier"), {"identifier": identifier})
 
         person_dict = {}
-        for key, value in zip(results.keys(), results): #fetchone
-            person_dict.update({key: value})
+        for row in result.cursor.fetchall():
+            for key, value in zip(result.keys(), row):
+                person_dict.update({key: value})
+        
+        conn.close()
 
-        #if len(person_dict) > 0: # don't need this line anymore
-        return {'message':'success', 'data':person_dict},200
-            #return json.dumps(results.keys())
-            #return results.keys()
-
+        if person_dict == {}:   # If the are no records with id = identifier, then exit with 404. Could have used 'if len(person_dict) > 0' instead
+            return {'message': 'id not found', 'invalid id': identifier}, 404 #####
+        
+        return person_dict
+    
 
     def delete(self, identifier):
         conn = e.connect()
-        results = conn.execute("select * from titanic where id='%s'" % identifier).fetchone()  ### fetchone
-        
-        if results is None:   #####
+        result = conn.execute(text("select * from titanic where id = :identifier"), {"identifier": identifier})
+
+        person_dict = {}
+        for row in result.cursor.fetchall():
+            for key, value in zip(result.keys(), row):
+                person_dict.update({key: value})
+
+        if person_dict == {}: # If the are no records with id = identifier, close connection then exit with 404
+            conn.close()
             return {'message': 'id not found', 'invalid id': identifier}, 404 #####
-
-        person_dict = {} 
-        for key, value in zip(results.keys(), results): # delete fetchall
-            person_dict.update({key: value})
     
-        # Do not need anymore
-        #    # If id does not exist in the database, return a 404 error.
-	#    if len(person_dict) == 0:
-	#        return {'message': 'Person not Found', 'data': person_dict}, 404
-	#    else:
-	#        # Delete person with id = identifier
-	#        conn.execute("delete from titanic where id='%s'" % identifier)
-	#        return {'message': 'Success', 'Deleted': person_dict}
-
-        ### New
         # Delete person with id = identifier
-        conn.execute("delete from titanic where id='%s'" % identifier)
-        return {'message': 'Success', 'Deleted': person_dict}, 200
+        conn.execute(text("delete from titanic where id = :identifier"), {"identifier": identifier})
+        conn.commit()
+        conn.close()
 
+        return {'message': 'Success', 'deleted': [person_dict]}, 200
     
     
     def put(self, identifier):
-    	parser = reqparse.RequestParser()
-	parser.add_argument('Survived', required=False)
-	parser.add_argument('Pclass', required=False)
-	parser.add_argument('Name', required=False)
-	parser.add_argument('Sex', required=False)
-	parser.add_argument('Age', required=False)
-	parser.add_argument('Siblings/Spouses Aboard', required=False)
-	parser.add_argument('Parents/Children Aboard', required=False)
-	parser.add_argument('Fare', required=False)
+        parser = reqparse.RequestParser()
+        parser.add_argument('survived', required=False)
+        parser.add_argument('p_class', required=False)
+        parser.add_argument('name', required=False)
+        parser.add_argument('sex', required=False)
+        parser.add_argument('age', required=False)
+        parser.add_argument('siblings_or_spouses_aboard', required=False)
+        parser.add_argument('parents_or_children_aboard', required=False)
+        parser.add_argument('fare', required=False)
 
         # Pass the arguments into an object
-	args = parser.parse_args()
+        args = parser.parse_args()
+        # check if any fields have been designated for an update
+        if len(args.values()) == 0:
+            return {'message': 'no fields require an update'}, 404  ####
 
-        # Check if identifier is a valid id number
         conn = e.connect()
-        is_identifier_valid = False
-        for ID in conn.execute("select id from titanic").cursor.fetchall():
-            if ID[0] == identifier:
-                is_identifier_valid = True
-                break
+        result = conn.execute(text("select * from titanic where id = :identifier"), {"identifier": identifier})
 
-        if is_identifier_valid == False:
-            return {'message': 'ID is not valid', 'invalid id': identifier}, 404####
+        person_dict = {}
+        for row in result.cursor.fetchall():
+            for key, value in zip(result.keys(), row):
+                person_dict.update({key: value})
 
-        # Check if any fields other than id have been sent via put request
-        #if len(args) == 0:
-        #    return {'message': 'No fields to update'}, 400
-        #else:
-        for val in args.values():
-            if val is not None:
-                stmt = ''
-                #d = {}
-                for key, value in args.iteritems():
-                    if value == None:
-                        pass
-                    else:
-                        stmt += "[" + key + "] = \'" + str(value) + "\', "
-            
-                # remove trailing ', ' from stmt (stmt.rstrip(', ') does not work here) 
-                stmt = stmt[:-2]
-                meta = MetaData()
-                meta.reflect(bind=e)
-                conn = e.connect()
+        # if person_dict is empty, there is no record with id == identifier
+        if person_dict == {}: 
+            conn.close()
+            return {'message': 'id is not valid', 'invalid id': identifier}, 404  ####
+        
+        # construct query statement 'stmt'
+        stmt = f'UPDATE titanic SET '
 
-                titanic_table = meta.tables['titanic']
-                #update_stmt = titanic_table.update().\
-                #        where(titanic_table.c.id == identifier).\
-                #        values([{key:value} for key, value in args.iterkeys(), args.itervalues()])
-	        conn.execute("update titanic set " + stmt + " where id='%s'" % identifier)
-                #conn.commit()
-                #conn.execute(update_stmt)
-	        return {'message': 'Person Updated', 'data': stmt}, 201
+        for key, value in args.items():
+            if value == None:
+                pass
+            else:
+                stmt += f'{key} = "{value}", '
+    
+        stmt = stmt.rstrip(' ,')  # remove trailing ', ' from stmt using stmt.rstrip(' ,') 
+        stmt += f' WHERE id = "{identifier}"'
 
-        # If no fields have a value other than None, return error message 
-        return {'message': 'No fields to update'}, 400
+        # execute query
+        conn.execute(text(stmt))
+        conn.commit()
+        conn.close()
+
+        return {'message': 'person updated', 'data': stmt}, 201
 
 
 api.add_resource(People_Id, "/people/<string:identifier>")
