@@ -162,4 +162,4 @@ api.add_resource(People_Id, "/people/<string:identifier>")
 api.add_resource(People_Meta, "/people")
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
