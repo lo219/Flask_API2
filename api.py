@@ -1,8 +1,8 @@
-﻿from flask import Flask, request
+﻿from flask import Flask
 from flask_restful import Resource, Api, reqparse
 from sqlalchemy.sql import text
-from sqlalchemy import create_engine, func, update, MetaData
-import json
+from sqlalchemy import create_engine
+from typing import Any
 import uuid
 
 # Create a engine for connecting to SQLite3.
@@ -15,25 +15,29 @@ api = Api(app)
 
 
 class People_Meta(Resource):
-    def get(self):
-        people_list = []
+    def get(self) -> "list[dict[str, str]]":
         # Connect to databse
         conn = e.connect()
-        # Perform query and return JSON data
+        # Perform query and return list of JSON objects (dictionaries)
         query = conn.execute(text("select * from titanic"))
 
-        for row in query.cursor.fetchall():
-            person_dict = {}
-            for key, value in zip(query.keys(), row):
-                person_dict.update({key: value})
-            people_list.append(person_dict)
-                
+        # for row in query.cursor.fetchall():
+        #     person_dict = {}
+        #     for key, value in zip(query.keys(), row):
+        #         person_dict.update({key: value})
+        #     people_list.append(person_dict)
+        
+        people_list = [ 
+            {key: value for key, value in zip(query.keys(), row)}
+                for row in query.cursor.fetchall()
+        ]
+
         conn.close()
 
         return people_list
 
 
-    def post(self):
+    def post(self) -> "tuple[dict[str,Any], int]":
         parser = reqparse.RequestParser()
         parser.add_argument('id', required=False, location='args')
         parser.add_argument('survived', required=True, location='args')
@@ -56,7 +60,8 @@ class People_Meta(Resource):
         conn = e.connect()
         
         try:
-            conn.execute(text("insert into titanic (id, survived, p_class, name, sex, age, siblings_or_spouses_aboard, parents_or_children_aboard, fare) values (:id, :survived, :p_class, :name, :sex, :age, :siblings_or_spouses_aboard, :parents_or_children_aboard, :fare)"),  
+            conn.execute(text("insert into titanic (id, survived, p_class, name, sex, age, siblings_or_spouses_aboard, parents_or_children_aboard, fare) \
+                              values (:id, :survived, :p_class, :name, :sex, :age, :siblings_or_spouses_aboard, :parents_or_children_aboard, :fare)"),  
                        [{"id": (args['id']), "survived": (args['survived']), "p_class": (args['p_class']), "name": (args['name']), "sex": (args['sex']), "age": (args['age']), "siblings_or_spouses_aboard": (args['siblings_or_spouses_aboard']), "parents_or_children_aboard": (args['parents_or_children_aboard']), "fare": (args['fare'])}],
             )
             conn.commit()
@@ -69,32 +74,44 @@ class People_Meta(Resource):
 
 
 class People_Id(Resource):
-    def get(self, identifier):
+    def get(self, identifier) -> "tuple[dict[str, Any], int]":
 
         conn = e.connect()
         result = conn.execute(text("select * from titanic where id = :identifier"), {"identifier": identifier})
 
-        person_dict = {}
-        for row in result.cursor.fetchall():
-            for key, value in zip(result.keys(), row):
-                person_dict.update({key: value})
-        
+        # person_dict = {}
+        # for row in result.cursor.fetchall():
+        #     for key, value in zip(result.keys(), row):
+        #         person_dict.update({key: value})
+
+        person_dict = {
+            key: value 
+            for row in result.cursor.fetchall()
+                for key, value in zip(result.keys(), row)
+        }
+
         conn.close()
 
         if person_dict == {}:   # If the are no records with id = identifier, then exit with 404. Could have used 'if len(person_dict) > 0' instead
             return {'message': 'id not found', 'invalid id': identifier}, 404 #####
         
-        return person_dict
+        return person_dict, 200
     
 
-    def delete(self, identifier):
+    def delete(self, identifier) -> "tuple[dict[str, Any], int]":
         conn = e.connect()
         result = conn.execute(text("select * from titanic where id = :identifier"), {"identifier": identifier})
 
-        person_dict = {}
-        for row in result.cursor.fetchall():
-            for key, value in zip(result.keys(), row):
-                person_dict.update({key: value})
+        # person_dict = {}
+        # for row in result.cursor.fetchall():
+        #     for key, value in zip(result.keys(), row):
+        #         person_dict.update({key: value})
+
+        person_dict = {
+            key: value 
+            for row in result.cursor.fetchall()
+                for key, value in zip(result.keys(), row)
+        }
 
         if person_dict == {}: # If the are no records with id = identifier, close connection then exit with 404
             conn.close()
@@ -108,7 +125,7 @@ class People_Id(Resource):
         return {'message': 'Success', 'deleted': [person_dict]}, 200
     
     
-    def put(self, identifier):
+    def put(self, identifier) -> "tuple[dict[str, Any], int]":
         parser = reqparse.RequestParser()
         parser.add_argument('survived', required=False)
         parser.add_argument('p_class', required=False)
@@ -128,10 +145,16 @@ class People_Id(Resource):
         conn = e.connect()
         result = conn.execute(text("select * from titanic where id = :identifier"), {"identifier": identifier})
 
-        person_dict = {}
-        for row in result.cursor.fetchall():
-            for key, value in zip(result.keys(), row):
-                person_dict.update({key: value})
+        # person_dict = {}
+        # for row in result.cursor.fetchall():
+        #     for key, value in zip(result.keys(), row):
+        #         person_dict.update({key: value})
+
+        person_dict = {
+            key: value 
+            for row in result.cursor.fetchall()
+                for key, value in zip(result.keys(), row)
+        }
 
         # if person_dict is empty, there is no record with id == identifier
         if person_dict == {}: 
@@ -157,7 +180,21 @@ class People_Id(Resource):
 
         return {'message': 'person updated', 'data': stmt}, 201
 
+class People_Any(Resource):
+    def get(self, identifier) -> "tuple[dict[str, Any], int]":
+        parser = reqparse.RequestParser()
+        parser.add_argument('survived', required=False)
+        parser.add_argument('p_class', required=False)
+        parser.add_argument('name', required=False)
+        parser.add_argument('sex', required=False)
+        parser.add_argument('age', required=False)
+        parser.add_argument('siblings_or_spouses_aboard', required=False)
+        parser.add_argument('parents_or_children_aboard', required=False)
+        parser.add_argument('fare', required=False)
+        parser.add_argument('operator', required=False)
+        parser.add_argument('value', required=False)
 
+api.add_resource(People_Any, "/people_any")
 api.add_resource(People_Id, "/people/<string:identifier>")
 api.add_resource(People_Meta, "/people")
 
