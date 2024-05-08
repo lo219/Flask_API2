@@ -1,4 +1,4 @@
-﻿from flask import Flask
+﻿from flask import Flask, request
 from flask_restful import Resource, Api, reqparse
 from sqlalchemy.sql import text
 from sqlalchemy import create_engine
@@ -127,20 +127,23 @@ class People_Id(Resource):
     
     def put(self, identifier) -> "tuple[dict[str, Any], int]":
         parser = reqparse.RequestParser()
-        parser.add_argument('survived', required=False)
-        parser.add_argument('p_class', required=False)
-        parser.add_argument('name', required=False)
-        parser.add_argument('sex', required=False)
-        parser.add_argument('age', required=False)
-        parser.add_argument('siblings_or_spouses_aboard', required=False)
-        parser.add_argument('parents_or_children_aboard', required=False)
-        parser.add_argument('fare', required=False)
+        parser.add_argument('survived', required=False, location='args')
+        parser.add_argument('p_class', required=False, location='args')
+        parser.add_argument('name', required=False, location='args')
+        parser.add_argument('sex', required=False, location='args')
+        parser.add_argument('age', required=False, location='args')
+        parser.add_argument('siblings_or_spouses_aboard', required=False, location='args')
+        parser.add_argument('parents_or_children_aboard', required=False, location='args')
+        parser.add_argument('fare', required=False, location='args')
+        parser.add_argument('value', required=False, location='args')
 
         # Pass the arguments into an object
         args = parser.parse_args()
-        # check if any fields have been designated for an update
-        if len(args.values()) == 0:
-            return {'message': 'no fields require an update'}, 404  ####
+
+        # determine if the request came with at least one of the designated arguments only
+        # i.e. check if any fields have been designated for an update
+        if len(request.args) == 0 or False in [key in args.keys() for key in request.args.keys()]:
+            return [{'message': 'at least one of the designated parameters only must be sent with this request', 'parameters': request.args}], 404  ####
 
         conn = e.connect()
         result = conn.execute(text("select * from titanic where id = :identifier"), {"identifier": identifier})
@@ -150,16 +153,16 @@ class People_Id(Resource):
         #     for key, value in zip(result.keys(), row):
         #         person_dict.update({key: value})
 
-        person_dict = {
+        person_data = {
             key: value 
             for row in result.cursor.fetchall()
                 for key, value in zip(result.keys(), row)
         }
 
         # if person_dict is empty, there is no record with id == identifier
-        if person_dict == {}: 
+        if person_data == {}: 
             conn.close()
-            return {'message': 'id is not valid', 'invalid id': identifier}, 404  ####
+            return [{'message': 'id is not valid', 'id': identifier}], 404  ####
         
         # construct query statement 'stmt'
         stmt = f'UPDATE titanic SET '
@@ -176,23 +179,57 @@ class People_Id(Resource):
         # execute query
         conn.execute(text(stmt))
         conn.commit()
+
+        new_result = conn.execute(text("select * from titanic where id = :identifier"), {"identifier": identifier})
+
+        updated_person_data = {
+            key: value 
+            for row in new_result.cursor.fetchall()
+                for key, value in zip(new_result.keys(), row)
+        }
         conn.close()
 
-        return {'message': 'person updated', 'data': stmt}, 201
+        return [{'message': 'person updated', 'update statement': stmt, 'old data': person_data, 'updated data': updated_person_data}], 201
+    
 
 class People_Any(Resource):
-    def get(self, identifier) -> "tuple[dict[str, Any], int]":
+    def get(self) -> "tuple[list[dict[str, Any]], int]":
         parser = reqparse.RequestParser()
-        parser.add_argument('survived', required=False)
-        parser.add_argument('p_class', required=False)
-        parser.add_argument('name', required=False)
-        parser.add_argument('sex', required=False)
-        parser.add_argument('age', required=False)
-        parser.add_argument('siblings_or_spouses_aboard', required=False)
-        parser.add_argument('parents_or_children_aboard', required=False)
-        parser.add_argument('fare', required=False)
-        parser.add_argument('operator', required=False)
-        parser.add_argument('value', required=False)
+        parser.add_argument('survived', required=False, location='args')
+        parser.add_argument('p_class', required=False, location='args')
+        parser.add_argument('name', required=False, location='args')
+        parser.add_argument('sex', required=False, location='args')
+        parser.add_argument('age', required=False, location='args')
+        parser.add_argument('siblings_or_spouses_aboard', required=False, location='args')
+        parser.add_argument('parents_or_children_aboard', required=False, location='args')
+        parser.add_argument('fare', required=False, location='args')
+        parser.add_argument('operator', required=False, location='args')
+        parser.add_argument('value', required=False, location='args')
+
+        # Pass the arguments into an object
+        args = parser.parse_args(strict=False) 
+
+        # require the request comes with one of the designated parameters only
+        request_arguments = list(request.args.keys())
+        if len(request_arguments) == 1 and request_arguments[0] in args.keys():
+            v = {key: value for key, value in zip(args.keys(), args.values()) if value != None}
+
+            key, value = v.popitem()
+            conn = e.connect()
+            result = conn.execute(text(f'select * from titanic where {key} = :value'), {"value": value})
+
+            people_list = [ 
+                {key: value for key, value in zip(result.keys(), row)}
+                    for row in result.cursor.fetchall()
+            ]
+
+            conn.close()
+
+            return people_list, 200
+        else:
+            return [{'message': 'error! exactly one of the specified parameters must be sent with this request', 'parameters': request_arguments}], 201
+
+
 
 api.add_resource(People_Any, "/people_any")
 api.add_resource(People_Id, "/people/<string:identifier>")

@@ -14,4 +14,4 @@ RUN python -m pip install --upgrade pip && pip install -r build.requirements.txt
 
 EXPOSE 5000
 
-CMD ["flask", "--app", "api.py", "run", "--host=0.0.0.0"]
+CMD ["flask", "--app", "api.py", "run", "--host=0.0.0.0", "--debug"]
